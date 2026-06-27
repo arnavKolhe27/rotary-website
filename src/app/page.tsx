@@ -15,7 +15,87 @@ function getLocalData(fileName: string) {
 }
 
 export default function Home() {
-  const projects = getLocalData('projects.json').sort((a: any, b: any) => (b.id || 0) - (a.id || 0)).slice(0, 4);
+  const rawProjects = getLocalData('projects.json');
+  const processedProjects = (() => {
+    if (!rawProjects || rawProjects.length === 0) return [];
+
+    // Hardcoded current context
+    const currentYear = 2026; 
+    const projectsByYear: { [key: number]: typeof rawProjects } = {};
+    let fallbackProjects: typeof rawProjects = [];
+    
+    rawProjects.forEach((proj: any) => {
+      let year: number | null = null;
+      const rawDate = proj.date || proj.operatingYear;
+      
+      if (rawDate) {
+        // Convert to string in case it's a raw number in JSON
+        const dateStr = String(rawDate); 
+        const match = dateStr.match(/\d{4}/);
+        if (match) year = parseInt(match[0]);
+      }
+      
+      if (year) {
+        if (!projectsByYear[year]) projectsByYear[year] = [];
+        projectsByYear[year].push(proj);
+      } else {
+        // Catch any project with bad/missing date styling so it doesn't vanish
+        fallbackProjects.push(proj);
+      }
+    });
+
+    // Sort historical cards with newest items first
+    Object.keys(projectsByYear).forEach((yearKey) => {
+      const y = parseInt(yearKey);
+      projectsByYear[y].sort((a: any, b: any) => {
+        const timeA = a.date ? new Date(a.date).getTime() : 0;
+        const timeB = b.date ? new Date(b.date).getTime() : 0;
+        
+        // If both dates are valid timestamps, sort descending
+        if (!isNaN(timeA) && !isNaN(timeB) && (timeA !== 0 || timeB !== 0)) {
+          return timeB - timeA; 
+        }
+        
+        // Fail-safe fallback: If dates are strings that can't parse perfectly,
+        // sort by ID descending assuming higher IDs are newer projects
+        return Number(b.id || 0) - Number(a.id || 0);
+      });
+    });
+
+    let finalSelection: typeof rawProjects = [];
+
+    // STEP 1: Extract up to 3 projects from 2026
+    if (projectsByYear[currentYear]) {
+      finalSelection.push(...projectsByYear[currentYear].slice(0, 3));
+    }
+
+    // STEP 2: Extract up to 2 projects from 2025, 2024, 2023
+    const pastYears = [currentYear - 1, currentYear - 2, currentYear - 3];
+    pastYears.forEach((year) => {
+      if (projectsByYear[year]) {
+        finalSelection.push(...projectsByYear[year].slice(0, 2));
+      }
+    });
+
+    // STEP 3: FAIL-SAFE FILLER
+    // If we still don't have 9 projects because of date formatting errors, 
+    // pad the array with leftover elements so the grid looks full for the presentation!
+    if (finalSelection.length < 9) {
+      const combinedLeftovers = [
+        ...(projectsByYear[currentYear] ? projectsByYear[currentYear].slice(3) : []),
+        ...fallbackProjects
+      ];
+      
+      for (const leftOver of combinedLeftovers) {
+        if (finalSelection.length >= 9) break;
+        if (!finalSelection.some((p: any) => p.id === leftOver.id)) {
+          finalSelection.push(leftOver);
+        }
+      }
+    }
+
+    return finalSelection;
+  })();
   const events = getLocalData('events.json').slice(0, 3);
   let bulletins = getLocalData('bulletins.json');
   bulletins.sort((a: any, b: any) => b.timestamp - a.timestamp);
@@ -47,16 +127,16 @@ export default function Home() {
         <div className="relative h-[400px] md:h-[600px] w-full rounded-2xl overflow-hidden shadow-sm">
           <Image 
             src="/hero.png" 
-            alt="Volunteers planting trees" 
+            alt="Rotary Club of Amravati Ambika Official Group Photo" 
             fill 
-            className="object-cover"
+            className="object-cover object-top"
             priority
           />
         </div>
       </section>
 
       {/* Signature Projects */}
-      <SignatureProjectsMarquee projects={projects} />
+      <SignatureProjectsMarquee projects={processedProjects} />
 
       {/* Events & Archives */}
       <section className="max-w-[1280px] mx-auto px-6 py-32 grid md:grid-cols-2 gap-16">

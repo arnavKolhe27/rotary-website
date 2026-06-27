@@ -18,48 +18,7 @@ export default function SignatureProjectsMarquee({ projects }: { projects: any[]
   const positionRef = useRef(0);
   const lastTimeRef = useRef<number>(0);
 
-  useEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
 
-    // We have duplicated the content twice to ensure seamless looping
-    // The width of one original set needs to be calculated.
-    // Instead of complex width calculations, we'll use transform and reset.
-    // Assuming each card + gap is approx 350px.
-    // Actually, we can just measure the first child's width * number of original items.
-    
-    const animate = (time: number) => {
-      if (!lastTimeRef.current) lastTimeRef.current = time;
-      const delta = time - lastTimeRef.current;
-      lastTimeRef.current = time;
-
-      if (isHovered && track) {
-        // Speed: 20 pixels per second
-        const pixelsPerMs = 20 / 1000;
-        positionRef.current -= pixelsPerMs * delta;
-
-        // Calculate total width of one original set of items
-        const itemWidth = track.children[0].getBoundingClientRect().width;
-        // gap is 24px (gap-6)
-        const totalSetWidth = (itemWidth + 24) * validProjects.length;
-
-        // If we have scrolled past the first set, reset
-        if (Math.abs(positionRef.current) >= totalSetWidth) {
-          positionRef.current += totalSetWidth;
-        }
-
-        track.style.transform = `translateX(${positionRef.current}px)`;
-      }
-
-      animationRef.current = requestAnimationFrame(animate);
-    };
-
-    animationRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
-  }, [isHovered]);
 
   return (
     <section 
@@ -79,15 +38,13 @@ export default function SignatureProjectsMarquee({ projects }: { projects: any[]
       <div className="w-full relative" ref={containerRef}>
         <div 
           ref={trackRef}
-          className="flex gap-6 px-6 w-max"
-          style={{ willChange: "transform" }}
+          className="flex gap-6 px-6 overflow-x-auto pb-4 snap-x snap-mandatory md:grid md:grid-cols-3 md:overflow-x-visible md:pb-0 scrollbar-none"
         >
-          {/* We render the projects array 3 times to ensure there's enough content to scroll seamlessly */}
-          {[...validProjects, ...validProjects, ...validProjects].map((project, idx) => (
+          {validProjects.map((project, idx) => (
             <Link
               key={`${project.id}-${idx}`}
               href={project.id && typeof project.id === 'string' && project.id.length > 3 ? `/projects/${project.id}` : '/projects'}
-              className="w-[320px] md:w-[400px] h-[400px] md:h-[500px] shrink-0 rounded-2xl overflow-hidden relative shadow-sm hover-interactive group block"
+              className="snap-center min-w-[85%] sm:min-w-[60%] md:min-w-0 md:w-full flex-shrink-0 h-[400px] md:h-[500px] rounded-2xl overflow-hidden relative shadow-sm hover-interactive group block"
             >
               <Image
                 src={project.photoURL && project.photoURL.length > 0 ? project.photoURL : "/window.svg"}
