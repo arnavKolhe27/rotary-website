@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #FFFFFF;
+  --color-primary: #003087;
+  --color-accent: #0079C1;
+  --color-soft-gray: #F5F7FA;
+  --color-pale-blue: #E5F0FF;
+  
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --color-navy-900: #0B2240; /* Mentioned in Task 2 for buttons */
+}
+
+@layer base {
+  :root {
+    --background: var(--color-canvas);
+    --foreground: var(--color-navy-900);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+  }
+}
+
+@layer utilities {
+  .transition-interactive {
+    transition: all 0.3s ease;
+  }
+  
+  .hover-interactive {
+    transition: all 0.3s ease;
+  }
+
+  .hover-interactive:hover {
+    box-shadow: 0 4px 20px rgba(0, 48, 135, 0.08);
+    background-color: var(--color-pale-blue);
+  }
+
+  .btn-primary {
+    background-color: var(--color-navy-900);
+    color: #FFFFFF;
+    transition: all 0.3s ease;
+    border-radius: 9999px;
+    padding: 1rem 2rem;
+    font-weight: 600;
+  }
+
+  .btn-primary:hover {
+    background-color: var(--color-accent);
+  }
+}
