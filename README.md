@@ -195,14 +195,6 @@ If you encounter a bug or have a feature request, please [open an issue](https:/
 
 ---
 
-## 📄 License
-
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
-
-> *(Update this section if the project uses a different license or is proprietary to the Rotary Club.)*
-
----
-
 ## 👤 Author
 
 **Arnav Kolhe**
