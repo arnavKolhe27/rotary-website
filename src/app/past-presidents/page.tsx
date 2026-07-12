@@ -1,6 +1,9 @@
 import { getPastPresidents, getCurrentRotaryYear } from "@/lib/db";
 import PastPresidentsClient from "./PastPresidentsClient";
 
+export const dynamic = 'force-dynamic';
+
+
 export default async function PastPresidentsPage() {
   const currentYear = getCurrentRotaryYear();
   const members = await getPastPresidents(currentYear);

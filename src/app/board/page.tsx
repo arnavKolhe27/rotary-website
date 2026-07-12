@@ -4,6 +4,9 @@ import { getActiveBoard, Member, getCurrentRotaryYear } from "@/lib/db";
 import { getDb } from "@/lib/mongodb";
 import FallbackAvatar from "@/components/FallbackAvatar";
 
+export const dynamic = 'force-dynamic';
+
+
 function RosterCard({ member }: { member: Member }) {
   return (
     <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:shadow-md transition-shadow duration-200">

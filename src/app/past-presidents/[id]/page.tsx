@@ -5,6 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
+export const dynamic = 'force-dynamic';
+
+
 const CATEGORY_COLORS: Record<string, string> = {
   Education: "bg-blue-100 text-blue-700",
   Medical: "bg-red-100 text-red-700",
