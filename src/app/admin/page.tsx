@@ -53,6 +53,17 @@ export default function AdminDashboard() {
   const loadMembers = () => fetch("/api/members").then(r => r.json()).then(d => setMemberList(d));
   const loadProjects = () => fetch("/api/projects").then(r => r.json()).then(d => setProjectList(d));
 
+  // Board Image State
+  const [boardImageSrc, setBoardImageSrc] = useState<string>("");
+  const [boardImageFile, setBoardImageFile] = useState<string>("");
+  const [boardImageError, setBoardImageError] = useState<string>("");
+  const [boardImageLoading, setBoardImageLoading] = useState(false);
+
+  const loadBoardImage = () =>
+    fetch("/api/board-image")
+      .then(r => r.json())
+      .then(d => { if (d.imageUrl) setBoardImageSrc(d.imageUrl); });
+
   // Event State
   const [eventTitle, setEventTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -122,6 +133,8 @@ export default function AdminDashboard() {
       loadMembers();
     } else if (activeTab === "projects") {
       loadProjects();
+    } else if (activeTab === "boardImage") {
+      loadBoardImage();
     }
   }, [activeTab]);
 
@@ -311,6 +324,7 @@ export default function AdminDashboard() {
           <button onClick={() => setActiveTab("projects")} className={`px-6 py-3 rounded-full font-bold text-sm ${activeTab === "projects" ? "bg-primary text-white" : "bg-white text-gray-600 shadow-sm"}`}>Projects Ledger</button>
           <button onClick={() => setActiveTab("events")} className={`px-6 py-3 rounded-full font-bold text-sm ${activeTab === "events" ? "bg-primary text-white" : "bg-white text-gray-600 shadow-sm"}`}>Club Calendar & Events</button>
           <button onClick={() => setActiveTab("bulletin")} className={`px-6 py-3 rounded-full font-bold text-sm ${activeTab === "bulletin" ? "bg-primary text-white" : "bg-white text-gray-600 shadow-sm"}`}>Weekly Bulletin Archives</button>
+          <button onClick={() => setActiveTab("boardImage")} className={`px-6 py-3 rounded-full font-bold text-sm ${activeTab === "boardImage" ? "bg-primary text-white" : "bg-white text-gray-600 shadow-sm"}`}>Board Poster Image</button>
           <button onClick={() => setActiveTab("donations")} className={`px-6 py-3 rounded-full font-bold text-sm ${activeTab === "donations" ? "bg-primary text-white" : "bg-white text-gray-600 shadow-sm"}`}>Manage Donation & Bank</button>
           <button onClick={() => setActiveTab("settings")} className={`px-6 py-3 rounded-full font-bold text-sm ${activeTab === "settings" ? "bg-primary text-white" : "bg-white text-gray-600 shadow-sm"}`}>Account Transition</button>
         </div>
@@ -629,6 +643,90 @@ export default function AdminDashboard() {
                 {memberList.filter(m => m.designation === "President" || m.designation === "Club President").length === 0 && <p className="text-sm text-gray-500">No historical records found.</p>}
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === "boardImage" && (
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-2xl">
+            <h2 className="text-xl font-bold mb-2">Board Poster Image</h2>
+            <p className="text-sm text-gray-500 mb-6">Upload the official board-of-directors group photo. Maximum 5 MB. This replaces what is shown on the public /board page.</p>
+
+            {/* Current image preview */}
+            {boardImageSrc && (
+              <div className="mb-6">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Current Active Image</p>
+                <img src={boardImageSrc} alt="Current board poster" className="w-full max-h-80 object-contain rounded-xl border border-gray-100" />
+              </div>
+            )}
+
+            {/* Error display */}
+            {boardImageError && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">
+                ⚠️ {boardImageError}
+              </div>
+            )}
+
+            {/* File picker */}
+            <div className="border-2 border-dashed border-gray-300 rounded-2xl p-10 text-center hover:bg-gray-50 transition-colors cursor-pointer relative mb-6">
+              <svg className="w-10 h-10 text-accent mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+              <p className="text-sm font-semibold text-gray-600">Click to select image (JPG, PNG — max 5 MB)</p>
+              <input
+                type="file"
+                accept="image/*"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                onChange={(e) => {
+                  setBoardImageError("");
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 5 * 1024 * 1024) {
+                    setBoardImageError(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed is 5 MB.`);
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = () => setBoardImageFile(reader.result as string);
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </div>
+
+            {/* Preview of newly selected file */}
+            {boardImageFile && (
+              <div className="mb-6">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Selected (not yet saved)</p>
+                <img src={boardImageFile} alt="Preview" className="w-full max-h-80 object-contain rounded-xl border border-blue-100" />
+              </div>
+            )}
+
+            <button
+              disabled={!boardImageFile || boardImageLoading}
+              onClick={async () => {
+                if (!boardImageFile) return;
+                setBoardImageLoading(true);
+                setBoardImageError("");
+                try {
+                  const res = await fetch("/api/board-image", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ imageBase64: boardImageFile }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    setBoardImageError(data.error || "Upload failed.");
+                  } else {
+                    setBoardImageSrc(boardImageFile);
+                    setBoardImageFile("");
+                    alert("Board image updated successfully!");
+                  }
+                } catch {
+                  setBoardImageError("Network error — please try again.");
+                } finally {
+                  setBoardImageLoading(false);
+                }
+              }}
+              className="w-full btn-primary mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {boardImageLoading ? "Uploading..." : "Save & Publish Board Image"}
+            </button>
           </div>
         )}
 

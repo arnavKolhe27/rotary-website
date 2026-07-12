@@ -1,92 +1,64 @@
-import fs from 'fs';
-import path from 'path';
 import Image from "next/image";
 import Link from "next/link";
 import SignatureProjectsMarquee from "@/components/SignatureProjectsMarquee";
+import { getDb } from "@/lib/mongodb";
 
-function getLocalData(fileName: string) {
-  try {
-    const filePath = path.join(process.cwd(), 'data', fileName);
-    if (fs.existsSync(filePath)) {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    }
-  } catch (e) {}
-  return [];
-}
+export default async function Home() {
+  const db = await getDb();
 
-export default function Home() {
-  const rawProjects = getLocalData('projects.json');
+  // ── Projects ────────────────────────────────────────────────────────────
+  const rawProjects = await db.collection('projects').find({}).toArray();
+
   const processedProjects = (() => {
     if (!rawProjects || rawProjects.length === 0) return [];
 
-    // Hardcoded current context
-    const currentYear = 2026; 
+    const currentYear = 2026;
     const projectsByYear: { [key: number]: typeof rawProjects } = {};
     let fallbackProjects: typeof rawProjects = [];
-    
+
     rawProjects.forEach((proj: any) => {
       let year: number | null = null;
       const rawDate = proj.date || proj.operatingYear;
-      
       if (rawDate) {
-        // Convert to string in case it's a raw number in JSON
-        const dateStr = String(rawDate); 
-        const match = dateStr.match(/\d{4}/);
+        const match = String(rawDate).match(/\d{4}/);
         if (match) year = parseInt(match[0]);
       }
-      
       if (year) {
         if (!projectsByYear[year]) projectsByYear[year] = [];
         projectsByYear[year].push(proj);
       } else {
-        // Catch any project with bad/missing date styling so it doesn't vanish
         fallbackProjects.push(proj);
       }
     });
 
-    // Sort historical cards with newest items first
     Object.keys(projectsByYear).forEach((yearKey) => {
       const y = parseInt(yearKey);
       projectsByYear[y].sort((a: any, b: any) => {
         const timeA = a.date ? new Date(a.date).getTime() : 0;
         const timeB = b.date ? new Date(b.date).getTime() : 0;
-        
-        // If both dates are valid timestamps, sort descending
-        if (!isNaN(timeA) && !isNaN(timeB) && (timeA !== 0 || timeB !== 0)) {
-          return timeB - timeA; 
-        }
-        
-        // Fail-safe fallback: If dates are strings that can't parse perfectly,
-        // sort by ID descending assuming higher IDs are newer projects
+        if (!isNaN(timeA) && !isNaN(timeB) && (timeA !== 0 || timeB !== 0)) return timeB - timeA;
         return Number(b.id || 0) - Number(a.id || 0);
       });
     });
 
     let finalSelection: typeof rawProjects = [];
 
-    // STEP 1: Extract up to 3 projects from 2026
     if (projectsByYear[currentYear]) {
       finalSelection.push(...projectsByYear[currentYear].slice(0, 3));
     }
 
-    // STEP 2: Extract up to 2 projects from 2025, 2024, 2023
-    const pastYears = [currentYear - 1, currentYear - 2, currentYear - 3];
-    pastYears.forEach((year) => {
+    [currentYear - 1, currentYear - 2, currentYear - 3].forEach((year) => {
       if (projectsByYear[year]) {
         finalSelection.push(...projectsByYear[year].slice(0, 2));
       }
     });
 
-    // STEP 3: FAIL-SAFE FILLER
-    // If we still don't have 9 projects because of date formatting errors, 
-    // pad the array with leftover elements so the grid looks full for the presentation!
     if (finalSelection.length < 9) {
-      const combinedLeftovers = [
+      const leftovers = [
         ...(projectsByYear[currentYear] ? projectsByYear[currentYear].slice(3) : []),
-        ...fallbackProjects
+        ...fallbackProjects,
       ];
-      
-      for (const leftOver of combinedLeftovers) {
+      for (const leftOver of leftovers) {
         if (finalSelection.length >= 9) break;
         if (!finalSelection.some((p: any) => p.id === leftOver.id)) {
           finalSelection.push(leftOver);
@@ -94,12 +66,27 @@ export default function Home() {
       }
     }
 
-    return finalSelection;
+    return finalSelection.map(({ _id, ...rest }: any) => rest);
   })();
-  const events = getLocalData('events.json').slice(0, 3);
-  let bulletins = getLocalData('bulletins.json');
-  bulletins.sort((a: any, b: any) => b.timestamp - a.timestamp);
-  
+
+  // ── Upcoming Events (future dates only, sorted ascending) ───────────────
+  const today = new Date().toISOString().split('T')[0];
+  const eventsRaw = await db
+    .collection('events')
+    .find({ date: { $gte: today } })
+    .sort({ date: 1 })
+    .limit(3)
+    .toArray();
+  const events = eventsRaw.map(({ _id, ...rest }: any) => rest);
+
+  // ── Bulletins ────────────────────────────────────────────────────────────
+  const bulletinsRaw = await db
+    .collection('bulletins')
+    .find({})
+    .sort({ timestamp: -1 })
+    .toArray();
+  const bulletins = bulletinsRaw.map(({ _id, ...rest }: any) => rest);
+
   const currentBulletin = bulletins.length > 0 ? bulletins[0] : null;
   const archivedBulletins = bulletins.slice(1, 4);
 
@@ -125,10 +112,10 @@ export default function Home() {
           </div>
         </div>
         <div className="relative h-[400px] md:h-[600px] w-full rounded-2xl overflow-hidden shadow-sm">
-          <Image 
-            src="/hero.png" 
-            alt="Rotary Club of Amravati Ambika Official Group Photo" 
-            fill 
+          <Image
+            src="/hero.png"
+            alt="Rotary Club of Amravati Ambika Official Group Photo"
+            fill
             className="object-cover object-top"
             priority
           />
@@ -140,7 +127,7 @@ export default function Home() {
 
       {/* Events & Archives */}
       <section className="max-w-[1280px] mx-auto px-6 py-32 grid md:grid-cols-2 gap-16">
-        
+
         {/* Upcoming Events */}
         <div>
           <h3 className="text-2xl font-bold mb-8">Upcoming Events</h3>
@@ -150,25 +137,27 @@ export default function Home() {
               const month = d.toLocaleString('default', { month: 'short' });
               const day = d.getDate().toString().padStart(2, '0');
               return (
-              <div key={idx} className="p-8 border-b border-gray-100 flex gap-8">
-                <div className="text-center shrink-0">
-                  <span className="block text-accent font-bold text-sm tracking-widest uppercase">{month}</span>
-                  <span className="block text-4xl font-extrabold text-primary mt-1">{day}</span>
+                <div key={idx} className="p-8 border-b border-gray-100 flex gap-8">
+                  <div className="text-center shrink-0">
+                    <span className="block text-accent font-bold text-sm tracking-widest uppercase">{month}</span>
+                    <span className="block text-4xl font-extrabold text-primary mt-1">{day}</span>
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-bold mb-2">{event.title}</h4>
+                    <p className="text-gray-600 text-sm mb-4 leading-relaxed">{event.time}</p>
+                    <span className="text-xs font-semibold text-primary flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {event.location}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xl font-bold mb-2">{event.title}</h4>
-                  <p className="text-gray-600 text-sm mb-4 leading-relaxed">{event.time}</p>
-                  <span className="text-xs font-semibold text-primary flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    {event.location}
-                  </span>
-                </div>
-              </div>
-              )
+              );
             }) : (
               <div className="p-8 text-center text-gray-500">No upcoming events scheduled.</div>
             )}
-
             <div className="p-6">
               <Link href="#" className="text-sm font-semibold text-accent flex items-center gap-2 hover:text-primary transition-colors">
                 View Full Calendar &rarr;
@@ -182,11 +171,18 @@ export default function Home() {
           <div className="bg-[#0A1A30] rounded-2xl p-10 text-white shadow-sm">
             <h3 className="text-2xl font-bold mb-4">Weekly Bulletin</h3>
             <p className="text-blue-200 text-sm mb-8">
-              Stay updated with our latest projects and club news. {currentBulletin ? `Latest issue is out now.` : `No bulletin available.`}
+              Stay updated with our latest projects and club news.{" "}
+              {currentBulletin ? "Latest issue is out now." : "No bulletin available."}
             </p>
             {currentBulletin ? (
-              <a href={currentBulletin.pdfBase64} download={currentBulletin.name} className="w-full bg-white text-[#0A1A30] font-bold py-4 rounded-full flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              <a
+                href={currentBulletin.pdfBase64}
+                download={currentBulletin.name}
+                className="w-full bg-white text-[#0A1A30] font-bold py-4 rounded-full flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
                 Download Current Issue
               </a>
             ) : (
@@ -202,11 +198,18 @@ export default function Home() {
               {archivedBulletins.length > 0 ? archivedBulletins.map((item: any, idx: number) => {
                 const date = new Date(item.timestamp).toLocaleDateString();
                 return (
-                  <a key={idx} href={item.pdfBase64} download={item.name} className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0 hover:bg-pale-blue transition-colors px-2 rounded-lg cursor-pointer">
+                  <a
+                    key={idx}
+                    href={item.pdfBase64}
+                    download={item.name}
+                    className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0 hover:bg-pale-blue transition-colors px-2 rounded-lg cursor-pointer"
+                  >
                     <span className="text-sm font-medium text-gray-700">{date} - {item.name}</span>
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
                   </a>
-                )
+                );
               }) : (
                 <div className="text-sm text-gray-500">No archived issues yet.</div>
               )}

@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import { getDb } from './mongodb';
 
 export interface MemberBio {
   achievements: string;
@@ -17,39 +16,53 @@ export interface Member {
   bio: MemberBio;
 }
 
-const DB_PATH = path.join(process.cwd(), 'data', 'members.json');
-
-export function getMembers(): Member[] {
-  try {
-    const data = fs.readFileSync(DB_PATH, 'utf-8');
-    return JSON.parse(data) as Member[];
-  } catch (error) {
-    return [];
-  }
-}
-
-export function saveMembers(members: Member[]) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(members, null, 2), 'utf-8');
-}
-
 export function getCurrentRotaryYear(): string {
   const now = new Date();
   const year = now.getFullYear();
-  if (now.getMonth() < 6) { // 0-indexed, 6 is July
+  // Rotary year runs July–June
+  if (now.getMonth() < 6) {
     return `${year - 1}-${year}`;
   } else {
     return `${year}-${year + 1}`;
   }
 }
 
-export function getActiveBoard(year: string = getCurrentRotaryYear()): Member[] {
-  const all = getMembers();
-  return all.filter(m => m.year === year).sort((a, b) => a.displayOrder - b.displayOrder);
+export async function getMembers(): Promise<Member[]> {
+  const db = await getDb();
+  const docs = await db.collection('members').find({}).toArray();
+  // Strip MongoDB _id before returning
+  return docs.map(({ _id, ...rest }) => rest as Member);
 }
 
-export function getPastPresidents(currentYear: string = getCurrentRotaryYear()): Member[] {
-  const all = getMembers();
+export async function saveMembers(members: Member[]): Promise<void> {
+  const db = await getDb();
+  const col = db.collection('members');
+  for (const member of members) {
+    if (!member.id) member.id = Date.now().toString();
+    await col.updateOne({ id: member.id }, { $set: member }, { upsert: true });
+  }
+}
+
+export async function deleteMember(id: string): Promise<void> {
+  const db = await getDb();
+  await db.collection('members').deleteOne({ id });
+}
+
+export async function getActiveBoard(year: string = getCurrentRotaryYear()): Promise<Member[]> {
+  const all = await getMembers();
   return all
-    .filter(m => m.designation.includes("President") && m.year !== currentYear && m.year < currentYear)
+    .filter((m) => m.year === year)
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+}
+
+export async function getPastPresidents(currentYear: string = getCurrentRotaryYear()): Promise<Member[]> {
+  const all = await getMembers();
+  return all
+    .filter(
+      (m) =>
+        m.designation.includes('President') &&
+        m.year !== currentYear &&
+        m.year < currentYear
+    )
     .sort((a, b) => b.year.localeCompare(a.year));
 }

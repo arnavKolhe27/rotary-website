@@ -1,27 +1,33 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { getDb } from '@/lib/mongodb';
 
 export async function GET() {
   try {
-    const dataPath = path.join(process.cwd(), 'data', 'donation.json');
-    if (!fs.existsSync(dataPath)) {
-      return NextResponse.json({ bankName: "", accountName: "", accountNumber: "", ifscCode: "", qrCodeBase64: "" });
+    const db = await getDb();
+    const doc = await db.collection('donation').findOne({ _type: 'donation' });
+    if (!doc) {
+      return NextResponse.json({
+        bankName: '', accountName: '', accountNumber: '', ifscCode: '', qrCodeBase64: '',
+      });
     }
-    const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+    const { _id, _type, ...data } = doc;
     return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to load donation data" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Failed to load donation data' }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const dataPath = path.join(process.cwd(), 'data', 'donation.json');
-    fs.writeFileSync(dataPath, JSON.stringify(body, null, 2), 'utf-8');
+    const db = await getDb();
+    await db.collection('donation').updateOne(
+      { _type: 'donation' },
+      { $set: { _type: 'donation', ...body } },
+      { upsert: true }
+    );
     return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to save donation data" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Failed to save donation data' }, { status: 500 });
   }
 }

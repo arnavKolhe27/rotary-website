@@ -1,35 +1,42 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { getDb } from '@/lib/mongodb';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const dataPath = path.join(process.cwd(), 'data', 'events.json');
-    if (!fs.existsSync(dataPath)) return NextResponse.json([]);
-    const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to load events" }, { status: 500 });
+    const { searchParams } = new URL(request.url);
+    const upcomingOnly = searchParams.get('upcoming') === 'true';
+
+    const db = await getDb();
+    const query: Record<string, unknown> = {};
+
+    if (upcomingOnly) {
+      // date field is stored as 'YYYY-MM-DD' string (from <input type="date">)
+      const today = new Date().toISOString().split('T')[0];
+      query.date = { $gte: today };
+    }
+
+    const events = await db
+      .collection('events')
+      .find(query)
+      .sort({ date: upcomingOnly ? 1 : -1 })
+      .toArray();
+
+    return NextResponse.json(events.map(({ _id, ...rest }) => rest));
+  } catch {
+    return NextResponse.json({ error: 'Failed to load events' }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
     const event = await request.json();
-    const dataPath = path.join(process.cwd(), 'data', 'events.json');
-    
-    let events = [];
-    if (fs.existsSync(dataPath)) {
-      events = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
-    }
+    const db = await getDb();
 
     if (!event.id) event.id = Date.now().toString();
-    
-    events.push(event);
 
-    fs.writeFileSync(dataPath, JSON.stringify(events, null, 2), 'utf-8');
+    await db.collection('events').insertOne(event);
     return NextResponse.json({ success: true, event });
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to save event" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Failed to save event' }, { status: 500 });
   }
 }

@@ -1,36 +1,32 @@
 import { NextResponse } from 'next/server';
-import { getMembers, saveMembers, Member } from '@/lib/db';
+import { getMembers, deleteMember, Member } from '@/lib/db';
+import { getDb } from '@/lib/mongodb';
+
+export async function GET() {
+  try {
+    const members = await getMembers();
+    return NextResponse.json(members);
+  } catch {
+    return NextResponse.json({ error: 'Failed to load members' }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {
     const member: Member = await request.json();
-    const members = getMembers();
-    
-    if (!member.id) {
-      member.id = Date.now().toString();
-      members.push(member);
-    } else {
-      const idx = members.findIndex(m => m.id === member.id);
-      if (idx !== -1) {
-        members[idx] = member;
-      } else {
-        members.push(member);
-      }
-    }
-    
-    saveMembers(members);
-    
-    return NextResponse.json({ success: true, member });
-  } catch (error) {
-    return NextResponse.json({ success: false, message: "Error saving member" }, { status: 500 });
-  }
-}
+    const db = await getDb();
 
-export async function GET() {
-  try {
-    return NextResponse.json(getMembers());
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to load members" }, { status: 500 });
+    if (!member.id) member.id = Date.now().toString();
+
+    await db.collection('members').updateOne(
+      { id: member.id },
+      { $set: member },
+      { upsert: true }
+    );
+
+    return NextResponse.json({ success: true, member });
+  } catch {
+    return NextResponse.json({ success: false, message: 'Error saving member' }, { status: 500 });
   }
 }
 
@@ -38,14 +34,11 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ success: false, message: "No ID provided" }, { status: 400 });
-    
-    let members = getMembers();
-    members = members.filter(m => m.id !== id);
-    saveMembers(members);
-    
+    if (!id) return NextResponse.json({ success: false, message: 'No ID provided' }, { status: 400 });
+
+    await deleteMember(id);
     return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json({ success: false, message: "Error deleting member" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ success: false, message: 'Error deleting member' }, { status: 500 });
   }
 }

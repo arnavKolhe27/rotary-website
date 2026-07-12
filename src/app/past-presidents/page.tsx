@@ -1,9 +1,9 @@
 import { getPastPresidents, getCurrentRotaryYear } from "@/lib/db";
 import PastPresidentsClient from "./PastPresidentsClient";
 
-export default function PastPresidentsPage() {
+export default async function PastPresidentsPage() {
   const currentYear = getCurrentRotaryYear();
-  const members = getPastPresidents(currentYear);
+  const members = await getPastPresidents(currentYear);
 
   return (
     <div className="bg-[#F5F7FA] min-h-screen">
@@ -20,3 +20,4 @@ export default function PastPresidentsPage() {
     </div>
   );
 }
+
