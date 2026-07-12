@@ -69,7 +69,7 @@ export default async function Home() {
       }
     }
 
-    return finalSelection.map(({ _id, ...rest }: any) => rest);
+    return finalSelection.map((doc: any) => ({ ...doc, _id: doc._id?.toString() }));
   })();
 
   // ── Upcoming Events (future dates only, sorted ascending) ───────────────
@@ -80,7 +80,7 @@ export default async function Home() {
     .sort({ date: 1 })
     .limit(3)
     .toArray();
-  const events = eventsRaw.map(({ _id, ...rest }: any) => rest);
+  const events = eventsRaw.map((doc: any) => ({ ...doc, _id: doc._id?.toString() }));
 
   // ── Bulletins ────────────────────────────────────────────────────────────
   const bulletinsRaw = await db
@@ -88,7 +88,7 @@ export default async function Home() {
     .find({})
     .sort({ timestamp: -1 })
     .toArray();
-  const bulletins = bulletinsRaw.map(({ _id, ...rest }: any) => rest);
+  const bulletins = bulletinsRaw.map((doc: any) => ({ ...doc, _id: doc._id?.toString() }));
 
   const currentBulletin = bulletins.length > 0 ? bulletins[0] : null;
   const archivedBulletins = bulletins.slice(1, 4);

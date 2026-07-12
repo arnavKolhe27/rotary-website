@@ -31,7 +31,7 @@ export async function getMembers(): Promise<Member[]> {
   const db = await getDb();
   const docs = await db.collection('members').find({}).toArray();
   // Strip MongoDB _id before returning
-  return docs.map(({ _id, ...rest }) => rest as Member);
+  return docs.map((doc: any) => ({ ...doc, _id: doc._id?.toString() }) as Member);
 }
 
 export async function saveMembers(members: Member[]): Promise<void> {
