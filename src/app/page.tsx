@@ -3,6 +3,9 @@ import Link from "next/link";
 import SignatureProjectsMarquee from "@/components/SignatureProjectsMarquee";
 import { getDb } from "@/lib/mongodb";
 
+export const dynamic = 'force-dynamic';
+
+
 export default async function Home() {
   const db = await getDb();
 
