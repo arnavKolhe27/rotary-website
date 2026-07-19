@@ -15,61 +15,20 @@ export default async function Home() {
   const processedProjects = (() => {
     if (!rawProjects || rawProjects.length === 0) return [];
 
-    const currentYear = 2026;
-    const projectsByYear: { [key: number]: typeof rawProjects } = {};
-    let fallbackProjects: typeof rawProjects = [];
-
-    rawProjects.forEach((proj: any) => {
-      let year: number | null = null;
-      const rawDate = proj.date || proj.operatingYear;
-      if (rawDate) {
-        const match = String(rawDate).match(/\d{4}/);
-        if (match) year = parseInt(match[0]);
-      }
-      if (year) {
-        if (!projectsByYear[year]) projectsByYear[year] = [];
-        projectsByYear[year].push(proj);
-      } else {
-        fallbackProjects.push(proj);
-      }
-    });
-
-    Object.keys(projectsByYear).forEach((yearKey) => {
-      const y = parseInt(yearKey);
-      projectsByYear[y].sort((a: any, b: any) => {
-        const timeA = a.date ? new Date(a.date).getTime() : 0;
-        const timeB = b.date ? new Date(b.date).getTime() : 0;
-        if (!isNaN(timeA) && !isNaN(timeB) && (timeA !== 0 || timeB !== 0)) return timeB - timeA;
-        return Number(b.id || 0) - Number(a.id || 0);
-      });
-    });
-
-    let finalSelection: typeof rawProjects = [];
-
-    if (projectsByYear[currentYear]) {
-      finalSelection.push(...projectsByYear[currentYear].slice(0, 3));
+    const pinnedProjects = rawProjects.filter((p: any) => p.pinned === true);
+    if (pinnedProjects.length > 0) {
+      return pinnedProjects.map((doc: any) => ({ ...doc, _id: doc._id?.toString() }));
     }
 
-    [currentYear - 1, currentYear - 2, currentYear - 3].forEach((year) => {
-      if (projectsByYear[year]) {
-        finalSelection.push(...projectsByYear[year].slice(0, 2));
-      }
+    // Fallback: 9 most recent projects
+    const sorted = [...rawProjects].sort((a: any, b: any) => {
+      const timeA = a.date ? new Date(a.date).getTime() : 0;
+      const timeB = b.date ? new Date(b.date).getTime() : 0;
+      if (!isNaN(timeA) && !isNaN(timeB) && (timeA !== 0 || timeB !== 0)) return timeB - timeA;
+      return Number(b.id || 0) - Number(a.id || 0);
     });
 
-    if (finalSelection.length < 9) {
-      const leftovers = [
-        ...(projectsByYear[currentYear] ? projectsByYear[currentYear].slice(3) : []),
-        ...fallbackProjects,
-      ];
-      for (const leftOver of leftovers) {
-        if (finalSelection.length >= 9) break;
-        if (!finalSelection.some((p: any) => p.id === leftOver.id)) {
-          finalSelection.push(leftOver);
-        }
-      }
-    }
-
-    return finalSelection.map((doc: any) => ({ ...doc, _id: doc._id?.toString() }));
+    return sorted.slice(0, 9).map((doc: any) => ({ ...doc, _id: doc._id?.toString() }));
   })();
 
   // ── Upcoming Events (future dates only, sorted ascending) ───────────────

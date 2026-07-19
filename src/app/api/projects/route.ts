@@ -43,3 +43,19 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: false, message: 'Error deleting project' }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const { id, pinned } = await request.json();
+    if (!id) return NextResponse.json({ success: false, message: 'No ID provided' }, { status: 400 });
+
+    const db = await getDb();
+    await db.collection('projects').updateOne(
+      { id },
+      { $set: { pinned } }
+    );
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ success: false, message: 'Error updating project pin status' }, { status: 500 });
+  }
+}

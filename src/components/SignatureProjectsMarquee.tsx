@@ -17,14 +17,74 @@ export default function SignatureProjectsMarquee({ projects }: { projects: any[]
   const animationRef = useRef<number | null>(null);
   const positionRef = useRef(0);
   const lastTimeRef = useRef<number>(0);
+  const [isDesktop, setIsDesktop] = useState(false);
 
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    handleResize(); // set initially
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
+  useEffect(() => {
+    // Only run animation logic if it's desktop
+    if (!isDesktop) {
+      if (trackRef.current) trackRef.current.style.transform = '';
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      return;
+    }
+
+    const track = trackRef.current;
+    if (!track) return;
+
+    const animate = (time: number) => {
+      if (!lastTimeRef.current) lastTimeRef.current = time;
+      const delta = time - lastTimeRef.current;
+      lastTimeRef.current = time;
+
+      if (isHovered && track) {
+        // Speed:  pixels per second
+        const pixelsPerMs = 120 / 1000;
+        positionRef.current -= pixelsPerMs * delta;
+
+        // Calculate total width of one original set of items
+        const firstChild = track.children[0] as HTMLElement;
+        if (firstChild) {
+          const itemWidth = firstChild.getBoundingClientRect().width;
+          // gap is 24px (gap-6)
+          const totalSetWidth = (itemWidth + 24) * validProjects.length;
+
+          // If we have scrolled past the first set, reset
+          if (Math.abs(positionRef.current) >= totalSetWidth) {
+            positionRef.current += totalSetWidth;
+          }
+
+          track.style.transform = `translateX(${positionRef.current}px)`;
+        }
+      }
+
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
+  }, [isHovered, isDesktop, validProjects.length]);
+
+  const displayProjects = isDesktop 
+    ? [...validProjects, ...validProjects, ...validProjects]
+    : validProjects;
 
   return (
     <section 
       className="py-32 bg-soft-gray overflow-hidden"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => { if (isDesktop) setIsHovered(true); }}
+      onMouseLeave={() => { if (isDesktop) setIsHovered(false); }}
     >
       <div className="max-w-[1280px] mx-auto px-6 mb-12 flex justify-between items-end">
         <h2 className="text-4xl font-extrabold tracking-tight text-primary">
@@ -38,13 +98,22 @@ export default function SignatureProjectsMarquee({ projects }: { projects: any[]
       <div className="w-full relative" ref={containerRef}>
         <div 
           ref={trackRef}
-          className="flex gap-6 px-6 overflow-x-auto pb-4 snap-x snap-mandatory md:grid md:grid-cols-3 md:overflow-x-visible md:pb-0 scrollbar-none"
+          className={`flex gap-6 px-6 pb-4 scrollbar-none ${
+            isDesktop 
+              ? 'w-max' 
+              : 'overflow-x-auto snap-x snap-mandatory md:grid md:grid-cols-3 md:overflow-x-visible md:pb-0'
+          }`}
+          style={{ willChange: isDesktop ? "transform" : "auto" }}
         >
-          {validProjects.map((project, idx) => (
+          {displayProjects.map((project, idx) => (
             <Link
               key={`${project.id}-${idx}`}
               href={project.id && typeof project.id === 'string' && project.id.length > 3 ? `/projects/${project.id}` : '/projects'}
-              className="snap-center min-w-[85%] sm:min-w-[60%] md:min-w-0 md:w-full flex-shrink-0 h-[400px] md:h-[500px] rounded-2xl overflow-hidden relative shadow-sm hover-interactive group block"
+              className={`${
+                isDesktop 
+                  ? 'w-[320px] md:w-[400px] h-[400px] md:h-[500px] shrink-0 rounded-2xl overflow-hidden relative shadow-sm hover-interactive group block'
+                  : 'snap-center min-w-[85%] sm:min-w-[60%] md:min-w-0 md:w-full flex-shrink-0 h-[400px] md:h-[500px] rounded-2xl overflow-hidden relative shadow-sm hover-interactive group block'
+              }`}
             >
               <Image
                 src={project.photoURL && project.photoURL.length > 0 ? project.photoURL : "/window.svg"}

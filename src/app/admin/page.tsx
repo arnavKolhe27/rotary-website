@@ -271,6 +271,23 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleTogglePin = async (id: string, currentPinnedStatus: boolean) => {
+    const newPinnedStatus = !currentPinnedStatus;
+    setProjectList(prev => prev.map(p => p.id === id ? { ...p, pinned: newPinnedStatus } : p));
+    
+    try {
+      const res = await fetch("/api/projects", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, pinned: newPinnedStatus })
+      });
+      if (!res.ok) throw new Error("Failed");
+    } catch (e) {
+      setProjectList(prev => prev.map(p => p.id === id ? { ...p, pinned: currentPinnedStatus } : p));
+      alert("Failed to update pin status.");
+    }
+  };
+
   const handleAccountTransition = async (e: React.FormEvent) => {
     e.preventDefault();
     const res = await fetch("/api/settings", {
@@ -521,7 +538,12 @@ export default function AdminDashboard() {
             </form>
 
             <div className="mt-12 border-t border-gray-100 pt-8">
-              <h2 className="text-xl font-bold mb-6">Existing Projects Ledger</h2>
+              <h2 className="text-xl font-bold mb-2">Existing Projects Ledger</h2>
+              {projectList.filter(p => p.pinned).length > 10 && (
+                <div className="mb-4 text-sm text-yellow-800 bg-yellow-50 px-4 py-2 rounded-lg border border-yellow-200">
+                  10+ projects pinned — for the best homepage layout, consider unpinning a few.
+                </div>
+              )}
               <div className="space-y-4">
                 {projectList.map(project => (
                   <div key={project.id} className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
@@ -529,7 +551,19 @@ export default function AdminDashboard() {
                       <p className="font-bold text-gray-800">{project.title}</p>
                       <p className="text-sm text-gray-500">{project.category} ({project.operatingYear || 'No Year'})</p>
                     </div>
-                    <button onClick={() => handleDeleteProject(project.id)} className="text-red-600 hover:text-red-800 text-sm font-bold transition-colors">Delete Project</button>
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => handleTogglePin(project.id, !!project.pinned)}
+                        className={`text-sm flex items-center justify-center p-2 rounded-full transition-colors ${project.pinned ? 'text-[#0079C1] bg-blue-50' : 'text-gray-400 hover:text-gray-600'}`}
+                        title={project.pinned ? "Unpin from homepage" : "Pin to homepage"}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={project.pinned ? "currentColor" : "none"} stroke="currentColor" className="w-5 h-5" strokeWidth={project.pinned ? "0" : "1.5"}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                        </svg>
+                      </button>
+                      <button onClick={() => handleDeleteProject(project.id)} className="text-red-600 hover:text-red-800 text-sm font-bold transition-colors">Delete Project</button>
+                    </div>
                   </div>
                 ))}
                 {projectList.length === 0 && <p className="text-sm text-gray-500">No projects found.</p>}
